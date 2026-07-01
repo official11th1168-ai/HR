@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>ระบบตอกบัตรลงเวลา</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Taviraj:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --paper:#F7F3E8;
+    --paper-panel:#FFFDF9;
+    --paper-deep:#EFE8D6;
+    --ink:#2B2620;
+    --ink-soft:#6E6455;
+    --ink-faint:#A79C87;
+    --brass:#A9814A;
+    --brass-deep:#86602F;
+    --brass-soft:#F1E6CC;
+    --ok:#4C7A52;
+    --ok-soft:#E7EFE1;
+    --warn:#B08A3F;
+    --warn-soft:#F5EAD3;
+    --err:#A8524A;
+    --err-soft:#F3E1DC;
+    --line:#E6DDC4;
+    --line-strong:#D3C6A3;
+    --radius:12px;
+    --shadow:0 1px 3px rgba(43,38,32,0.06), 0 10px 26px -10px rgba(43,38,32,0.16);
+    --shadow-sm:0 1px 3px rgba(43,38,32,0.08);
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0;color:var(--ink);
+    font-family:'IBM Plex Sans Thai','Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;min-height:100vh;line-height:1.6;
+    background-color:var(--paper);
+    background-image:
+      radial-gradient(ellipse 1100px 600px at 15% -10%, rgba(169,129,74,0.07), transparent 60%),
+      radial-gradient(ellipse 900px 700px at 105% 10%, rgba(169,129,74,0.05), transparent 55%);
+    background-attachment:fixed;
+  }
+  h1,h2,h3{font-family:'Taviraj',serif;font-weight:500;margin:0 0 4px;letter-spacing:-0.015em;color:var(--ink);}
+  h2{font-size:26px;line-height:1.28;}
+  h1{font-weight:600;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button{font-family:inherit;cursor:pointer;}
+  .hidden{display:none !important;}
+  ::selection{background:var(--brass-soft);}
+  :focus-visible{outline:2px solid var(--brass);outline-offset:2px;}
+
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--brass-deep);font-weight:600;margin-bottom:8px;display:block;}
+
+  /* ---------- shell ---------- */
+  .app-shell{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px 60px;animation:fade-in .45s ease;}
+  @keyframes fade-in{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .brandbar{width:100%;max-width:440px;display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;}
+  .brandbar .mark{display:flex;align-items:center;gap:9px;}
+  .mark .dot{width:8px;height:8px;border-radius:2px;background:var(--brass);transform:rotate(45deg);}
+  .brandbar .brandname{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.1em;color:var(--ink-soft);text-transform:uppercase;font-weight:600;}
+  .brandbar .brandsub{font-size:11px;color:var(--ink-faint);font-family:'IBM Plex Mono',monospace;}
+
+  .card{background:var(--paper-panel);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);width:100%;max-width:440px;padding:0;overflow:hidden;}
+  .card-bar{height:4px;background:linear-gradient(90deg,var(--brass),var(--brass-deep));}
+  .card-body{padding:30px 26px 28px;}
+  .stack{display:flex;flex-direction:column;gap:14px;}
+  .muted{color:var(--ink-soft);font-size:14px;line-height:1.65;}
+  .field label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;font-weight:600;}
+  .field input, .field select{width:100%;padding:13px 14px;border:1px solid var(--line-strong);
+    border-radius:10px;font-size:15px;font-family:inherit;background:#fff;color:var(--ink);transition:border-color .15s;}
+  .field input:focus, .field select:focus{outline:none;border-color:var(--brass);}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;
+    padding:14px 18px;border-radius:9px;border:1px solid transparent;font-size:15px;font-weight:700;
+    letter-spacing:0.01em;transition:background .15s,transform .06s,border-color .15s;}
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{background:var(--ink);color:var(--paper);}
+  .btn-primary:hover{background:#3A3226;}
+  .btn-primary:disabled{background:var(--ink-faint);cursor:not-allowed;}
+  .btn-brass{background:var(--brass);color:#fff;}
+  .btn-brass:hover{background:var(--brass-deep);}
+  .btn-ok{background:var(--ok);color:#fff;}
+  .btn-ok:hover{background:#3C6244;}
+  .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line-strong);}
+  .btn-ghost:hover{border-color:var(--brass);color:var(--brass-deep);}
+  .btn-text{background:none;border:none;color:var(--ink-soft);font-size:13px;text-decoration:none;padding:6px;
+    border-bottom:1px solid var(--line-strong);}
+  .btn-text:hover{color:var(--brass-deep);border-color:var(--brass);}
+  .choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .choice{border:1px solid var(--line-strong);border-radius:11px;padding:20px 10px 16px;text-align:center;
+    background:#fff;font-weight:700;font-size:14.5px;color:var(--ink);position:relative;transition:.15s;}
+  .choice:hover{border-color:var(--brass);}
+  .choice .cnum{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);
+    font-weight:500;letter-spacing:0.08em;margin-bottom:8px;}
+  .choice.selected{border-color:var(--brass);background:var(--brass-soft);color:var(--brass-deep);}
+  .hairline{border:none;border-top:1px dashed var(--line-strong);margin:6px 0;}
+  .footer-link{margin-top:24px;text-align:center;}
+
+  /* ---------- live clock (hero) ---------- */
+  .clock-wrap{text-align:center;padding:8px 0 4px;}
+  .clock-time{font-family:'IBM Plex Mono',monospace;font-size:52px;font-weight:600;letter-spacing:0.01em;
+    color:var(--ink);line-height:1;}
+  .clock-date{color:var(--ink-soft);font-size:14.5px;margin-top:8px;font-family:'Taviraj',serif;font-style:italic;font-weight:400;}
+
+  /* ---------- ticket (signature element) ---------- */
+  .ticket-wrap{width:100%;max-width:440px;position:relative;}
+  .ticket{position:relative;background:var(--paper-panel);border:1px solid var(--line);
+    box-shadow:var(--shadow);width:100%;overflow:visible;
+    clip-path:polygon(
+      0 0,100% 0,100% 82%,
+      96% 86%,92% 82%,88% 86%,84% 82%,80% 86%,76% 82%,72% 86%,68% 82%,64% 86%,
+      60% 82%,56% 86%,52% 82%,48% 86%,44% 82%,40% 86%,36% 82%,32% 86%,
+      28% 82%,24% 86%,20% 82%,16% 86%,12% 82%,8% 86%,4% 82%,0 86%
+    );
+    padding-bottom:26px;border-radius:14px 14px 0 0;}
+  .ticket-top{padding:28px 26px 8px;text-align:center;}
+  .ticket-status{display:inline-block;padding:6px 16px;border-radius:999px;font-size:12px;font-weight:700;
+    letter-spacing:0.04em;margin-bottom:14px;}
+  .status-in{background:var(--ok-soft);color:var(--ok);}
+  .status-out{background:var(--brass-soft);color:var(--brass-deep);}
+  .status-late{background:var(--warn-soft);color:var(--warn);}
+  .ticket-time{font-size:44px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin:4px 0 4px;letter-spacing:0.01em;}
+  .ticket-date{color:var(--ink-soft);font-size:14px;font-family:'Taviraj',serif;font-style:italic;font-weight:400;}
+  .ticket-bottom{padding:8px 26px 6px;}
+  .ticket-row{display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--ink-soft);
+    border-bottom:1px solid var(--line);}
+  .ticket-row:last-of-type{border-bottom:none;}
+  .ticket-row b{color:var(--ink);font-weight:700;}
+  .ticket-stamp{position:absolute;top:20px;right:20px;width:60px;height:60px;border-radius:50%;
+    border:2px dashed var(--brass);display:flex;align-items:center;justify-content:center;
+    transform:rotate(-14deg);color:var(--brass-deep);opacity:0.85;}
+  .ticket-stamp span{font-size:9px;font-weight:800;letter-spacing:0.06em;text-align:center;line-height:1.3;}
+  .ticket-actions{padding:22px 26px 0;}
+
+  /* ---------- camera ---------- */
+  .capture-box{border:1.5px dashed var(--line-strong);border-radius:11px;background:#FFFDF9;
+    aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;
+    transition:border-color .15s;}
+  .capture-box img{width:100%;height:100%;object-fit:cover;}
+  .capture-empty{text-align:center;color:var(--ink-faint);padding:20px;}
+  .capture-empty .icon{width:38px;height:38px;margin:0 auto 12px;border:2px solid var(--ink-faint);border-radius:8px;position:relative;}
+  .capture-empty .icon::after{content:'';position:absolute;inset:9px;border:2px solid var(--ink-faint);border-radius:50%;}
+  .capture-empty div.label{font-size:13.5px;font-weight:600;color:var(--ink-soft);}
+
+  /* ---------- admin shell ---------- */
+  .admin-shell{width:100%;max-width:1120px;display:grid;grid-template-columns:220px 1fr;gap:28px;align-items:start;}
+  .admin-head{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:10px;}
+  .admin-head .eyebrow{margin-bottom:2px;}
+  .tabs{grid-column:1;display:flex;flex-direction:column;gap:2px;background:var(--ink);border-radius:var(--radius);
+    padding:10px;box-shadow:var(--shadow);position:sticky;top:24px;}
+  .tab{padding:12px 14px;font-size:13.5px;font-weight:600;color:#BDB29A;background:none;border:none;
+    border-left:3px solid transparent;text-align:left;border-radius:6px;letter-spacing:0.01em;}
+  .tab:hover{color:#fff;background:rgba(255,255,255,0.05);}
+  .tab.active{color:#fff;background:rgba(169,129,74,0.18);border-left-color:var(--brass);}
+  .tab-panel{grid-column:2;}
+  @media(max-width:760px){
+    .admin-shell{grid-template-columns:1fr;}
+    .tabs{grid-column:1;position:static;flex-direction:row;overflow-x:auto;}
+    .tab-panel{grid-column:1;}
+  }
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr;}}
+  table{width:100%;border-collapse:collapse;font-size:14px;background:var(--paper-panel);}
+  th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line);}
+  th{color:var(--ink-soft);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;background:var(--paper-deep);}
+  tbody tr:nth-child(even){background:#FBF8F0;}
+  tbody tr:hover{background:var(--brass-soft);}
+  .badge{display:inline-block;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:700;}
+  .b-ok{background:var(--ok-soft);color:var(--ok);}
+  .b-late{background:var(--warn-soft);color:var(--warn);}
+  .b-absent{background:var(--err-soft);color:var(--err);}
+  .b-off{background:var(--paper-deep);color:var(--ink-soft);}
+  .panel{background:var(--paper-panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;
+    box-shadow:var(--shadow-sm);margin-bottom:16px;position:relative;}
+  .panel::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--radius) var(--radius) 0 0;
+    background:linear-gradient(90deg,var(--brass),transparent);}
+  .stat-row{display:flex;gap:26px;margin-top:14px;flex-wrap:wrap;}
+  .stat{min-width:64px;}
+  .stat b{font-size:26px;display:block;font-family:'IBM Plex Mono',monospace;}
+  .stat .stat-label{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:280px;margin:20px auto 0;}
+  .pin-key{padding:17px;border-radius:10px;border:1px solid var(--line-strong);background:#fff;font-size:18px;font-weight:700;transition:.15s;}
+  .pin-key:hover{border-color:var(--brass);}
+  .pin-display{text-align:center;font-size:28px;letter-spacing:12px;font-family:'IBM Plex Mono',monospace;min-height:36px;margin-top:14px;}
+  .weekday-picker{display:flex;gap:7px;flex-wrap:wrap;}
+  .weekday-picker .wd{width:40px;height:40px;border-radius:9px;border:1px solid var(--line-strong);background:#fff;font-size:12.5px;font-weight:700;transition:.15s;}
+  .weekday-picker .wd:hover{border-color:var(--brass);}
+  .weekday-picker .wd.selected{background:var(--brass);color:#fff;border-color:var(--brass);}
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);
+    padding:13px 22px;border-radius:10px;font-size:14px;box-shadow:var(--shadow);z-index:999;max-width:90vw;text-align:center;
+    animation:toast-in .2s ease;}
+  @keyframes toast-in{from{opacity:0;transform:translate(-50%,8px);}to{opacity:1;transform:translate(-50%,0);}}
+  .small-row{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line);}
+  .small-row:last-child{border-bottom:none;}
+  .icon-btn{background:#fff;border:1px solid var(--line-strong);border-radius:8px;padding:7px 12px;font-size:12px;color:var(--ink-soft);font-weight:600;transition:.15s;}
+  .icon-btn:hover{border-color:var(--brass);color:var(--brass-deep);}
+  input[type="date"], select.filter{padding:10px 11px;border:1px solid var(--line-strong);border-radius:8px;font-size:13.5px;font-family:inherit;background:#fff;}
+</style>
+</head>
+<body>
+
+<div class="app-shell" id="app">
+
+  <!-- ================= EMPLOYEE FLOW ================= -->
+
+  <div class="brandbar">
+    <div class="mark"><span class="dot"></span><span class="brandname">ระบบตอกบัตรลงเวลา</span></div>
+    <span class="brandsub mono" id="brand-clock"></span>
+  </div>
+
+  <!-- Step 1: register -->
+  <div id="screen-register" class="card hidden">
+    <div class="card-bar"></div>
+    <div class="card-body">
+    <div id="reg-step-dept">
+      <span class="eyebrow">เริ่มต้นใช้งาน</span>
+      <h2>เลือกแผนก</h2>
+      <p class="muted">เลือกแผนกของท่าน ทำเพียงครั้งเดียว ระบบจะจดจำอุปกรณ์นี้ไว้ให้</p>
+      <div class="choice-grid" style="margin-top:18px;" id="dept-choices"></div>
+    </div>
+
+    <div id="reg-step-name" class="hidden">
+      <span class="eyebrow">ขั้นตอนที่ 2</span>
+      <h2>เลือกชื่อของท่าน</h2>
+      <p class="muted">รายชื่อที่ผู้ดูแลระบบลงทะเบียนไว้ในแผนกนี้</p>
+      <div class="field" style="margin-top:18px;">
+        <select id="name-select"><option value="">— เลือกชื่อ —</option></select>
+      </div>
+      <div class="stack" style="margin-top:18px;">
+        <button class="btn btn-primary" id="btn-confirm-name">ถัดไป</button>
+        <button class="btn-text" id="btn-back-dept" style="align-self:center;">‹ กลับไปเลือกแผนก</button>
+      </div>
+    </div>
+
+    <div id="reg-step-phone" class="hidden">
+      <span class="eyebrow">ขั้นตอนสุดท้าย</span>
+      <h2>ยืนยันตัวตน</h2>
+      <p class="muted">กรอกเบอร์โทรศัพท์ของท่านเพื่อยืนยัน ระบบจะจดจำอุปกรณ์นี้ไว้ให้อัตโนมัติ</p>
+      <div class="field" style="margin-top:18px;">
+        <label>เบอร์โทรศัพท์</label>
+        <input type="tel" id="phone-input" placeholder="0812345678" maxlength="10">
+      </div>
+      <div class="stack" style="margin-top:18px;">
+        <button class="btn btn-primary" id="btn-finish-register">เริ่มใช้งาน</button>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Step 2: check-in main -->
+  <div id="screen-checkin" class="card hidden">
+    <div class="card-bar"></div>
+    <div class="card-body">
+    <div class="clock-wrap">
+      <div class="clock-time mono" id="live-clock-time">00:00:00</div>
+      <div class="clock-date" id="live-clock-date">—</div>
+    </div>
+    <hr class="hairline" style="margin:18px 0;">
+    <div style="text-align:center;margin-bottom:16px;">
+      <span class="eyebrow" id="ci-meta">—</span>
+      <h2 id="ci-name">—</h2>
+    </div>
+    <div class="capture-box" id="capture-box">
+      <div class="capture-empty" id="capture-empty">
+        <div class="icon"></div>
+        <div class="label">แตะเพื่อถ่ายรูปตอกบัตร</div>
+      </div>
+      <img id="capture-preview" class="hidden">
+    </div>
+    <input type="file" accept="image/*" capture="environment" id="file-input" class="hidden">
+    <div class="stack" style="margin-top:18px;">
+      <button class="btn btn-primary" id="btn-open-camera">ถ่ายรูป / อัปโหลดรูปภาพ</button>
+      <button class="btn btn-ok hidden" id="btn-submit-clock">ยืนยันตอกบัตร</button>
+      <button class="btn btn-text hidden" id="btn-retake" style="align-self:center;">ถ่ายใหม่</button>
+    </div>
+    <div class="footer-link">
+      <button class="btn-text" id="btn-goto-admin">สำหรับผู้ดูแลระบบ</button>
+    </div>
+    </div>
+  </div>
+
+  <!-- Step 3: ticket confirmation -->
+  <div class="ticket-wrap hidden" id="screen-ticket">
+    <div class="ticket">
+      <div class="ticket-stamp"><span>ตอกบัตร<br>แล้ว</span></div>
+      <div class="ticket-top">
+        <span class="ticket-status" id="ticket-badge">—</span>
+        <h1 class="ticket-time mono" id="ticket-time">00:00</h1>
+        <div class="ticket-date" id="ticket-date">—</div>
+      </div>
+      <div class="ticket-bottom">
+        <div class="ticket-row"><span>ชื่อ</span><b id="ticket-name">—</b></div>
+        <div class="ticket-row"><span>แผนก</span><b id="ticket-dept">—</b></div>
+        <div class="ticket-row"><span>รายการ</span><b id="ticket-kind">—</b></div>
+      </div>
+      <div class="ticket-actions">
+        <button class="btn btn-ghost" id="btn-ticket-done">เสร็จสิ้น</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ADMIN: PIN ================= -->
+  <div id="screen-admin-pin" class="card hidden">
+    <div class="card-bar"></div>
+    <div class="card-body">
+    <div style="text-align:center;">
+      <span class="eyebrow">พื้นที่จำกัดสิทธิ์</span>
+      <h2>เข้าสู่ระบบผู้ดูแล</h2>
+      <p class="muted">กรอกรหัสผ่าน</p>
+      <div class="pin-display" id="pin-display"></div>
+    </div>
+    <div class="pin-pad" id="pin-pad"></div>
+    <div class="footer-link">
+      <button class="btn-text" id="btn-back-checkin">‹ กลับหน้าตอกบัตร</button>
+    </div>
+    </div>
+  </div>
+
+  <!-- ================= ADMIN: DASHBOARD ================= -->
+  <div id="screen-admin" class="admin-shell hidden">
+    <div class="admin-head">
+      <div><span class="eyebrow">แผงควบคุม</span><h2>ผู้ดูแลระบบ</h2></div>
+      <button class="btn-text" id="btn-admin-logout">ออกจากระบบผู้ดูแล</button>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="overview">ภาพรวมวันนี้</button>
+      <button class="tab" data-tab="employees">พนักงาน</button>
+      <button class="tab" data-tab="offdays">วันหยุด</button>
+      <button class="tab" data-tab="reports">รายงาน</button>
+    </div>
+
+    <div id="tab-overview" class="tab-panel"></div>
+    <div id="tab-employees" class="tab-panel hidden"></div>
+    <div id="tab-offdays" class="tab-panel hidden"></div>
+    <div id="tab-reports" class="tab-panel hidden"></div>
+  </div>
+
+</div>
+
+<script>
+
+/* ============================================================
+   ตั้งค่าการเชื่อมต่อ Supabase — แก้ 2 บรรทัดนี้หลังสร้างโปรเจกต์
+   ============================================================ */
+const SUPABASE_URL = 'https://geejifrryjmlsgkshsst.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdlZWppZnJyeWptbHNna3Noc3N0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MDY1MjUsImV4cCI6MjA5ODQ4MjUyNX0.ms_LgGgow5m3qojus1_oFruVoiRxXmEMBBDze3EJF8w';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const LS_EMP_ID = 'att_employee_id';
+const LS_EMP_NAME = 'att_employee_name';
+const LS_DEPT_NAME = 'att_department_name';
+
+const WEEKDAY_LABELS = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+const WEEKDAY_FULL = ['วันอาทิตย์','วันจันทร์','วันอังคาร','วันพุธ','วันพฤหัสบดี','วันศุกร์','วันเสาร์'];
+
+let state = {
+  departments: [],
+  selectedDeptId: null,
+  selectedEmployeeId: null,
+  capturedFile: null,
+  pinBuffer: '',
+  employeesCache: [],
+  adminActive: false,
+};
+
+const $ = (id) => document.getElementById(id);
+const show = (id) => $(id).classList.remove('hidden');
+const hide = (id) => $(id).classList.add('hidden');
+const showOnly = (id) => {
+  ['screen-register','screen-checkin','screen-ticket','screen-admin-pin','screen-admin']
+    .forEach(s => s === id ? show(s) : hide(s));
+};
+
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2600);
+}
+
+function pad(n){ return n.toString().padStart(2,'0'); }
+function todayStr(d = new Date()){
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function timeStr(d = new Date()){
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function dateThai(d = new Date()){
+  const days = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  return `วัน${days[d.getDay()]}ที่ ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()+543}`;
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  const savedEmpId = localStorage.getItem(LS_EMP_ID);
+  if (savedEmpId) {
+    const { data, error } = await sb.from('employees').select('*, departments(name)').eq('id', savedEmpId).maybeSingle();
+    if (data) {
+      state.selectedEmployeeId = data.id;
+      showCheckinScreen(data);
+      return;
+    } else {
+      localStorage.removeItem(LS_EMP_ID);
+      localStorage.removeItem(LS_EMP_NAME);
+      localStorage.removeItem(LS_DEPT_NAME);
+    }
+  }
+  await loadDepartments();
+  showOnly('screen-register');
+}
+
+async function loadDepartments(){
+  const { data, error } = await sb.from('departments').select('*').order('name');
+  if (error) { toast('เชื่อมต่อระบบไม่สำเร็จ ตรวจสอบการตั้งค่า Supabase'); return; }
+  state.departments = data || [];
+  const box = $('dept-choices');
+  box.innerHTML = '';
+  state.departments.forEach((d, i) => {
+    const el = document.createElement('button');
+    el.className = 'choice';
+    el.innerHTML = `<span class="cnum">${(i+1).toString().padStart(2,'0')}</span>${d.name}`;
+    el.onclick = () => selectDepartment(d);
+    box.appendChild(el);
+  });
+}
+
+async function selectDepartment(dept){
+  state.selectedDeptId = dept.id;
+  hide('reg-step-dept'); show('reg-step-name');
+  const { data, error } = await sb.from('employees')
+    .select('*').eq('department_id', dept.id).eq('active', true).order('full_name');
+  const sel = $('name-select');
+  sel.innerHTML = '<option value="">— เลือกชื่อ —</option>';
+  (data||[]).forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.id; opt.textContent = e.full_name;
+    sel.appendChild(opt);
+  });
+}
+
+$('btn-back-dept').onclick = () => { hide('reg-step-name'); show('reg-step-dept'); };
+
+$('btn-confirm-name').onclick = () => {
+  const val = $('name-select').value;
+  if (!val) { toast('กรุณาเลือกชื่อ'); return; }
+  state.selectedEmployeeId = val;
+  hide('reg-step-name'); show('reg-step-phone');
+};
+
+$('btn-finish-register').onclick = async () => {
+  const phone = $('phone-input').value.trim();
+  if (phone.length < 9) { toast('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง'); return; }
+  const { data, error } = await sb.from('employees')
+    .update({ phone }).eq('id', state.selectedEmployeeId).select('*, departments(name)').maybeSingle();
+  if (error) { toast('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง'); return; }
+  localStorage.setItem(LS_EMP_ID, data.id);
+  localStorage.setItem(LS_EMP_NAME, data.full_name);
+  localStorage.setItem(LS_DEPT_NAME, data.departments.name);
+  showCheckinScreen(data);
+};
+
+/* ============================================================
+   CHECK-IN SCREEN
+   ============================================================ */
+function showCheckinScreen(emp){
+  $('ci-name').textContent = emp.full_name;
+  $('ci-meta').textContent = `${emp.departments ? emp.departments.name : ''} · ${dateThai()}`;
+  resetCapture();
+  showOnly('screen-checkin');
+}
+
+function resetCapture(){
+  state.capturedFile = null;
+  $('file-input').value = '';
+  hide('capture-preview'); show('capture-empty');
+  show('btn-open-camera'); hide('btn-submit-clock'); hide('btn-retake');
+}
+
+$('btn-open-camera').onclick = () => $('file-input').click();
+
+$('file-input').onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  state.capturedFile = file;
+  const url = URL.createObjectURL(file);
+  $('capture-preview').src = url;
+  hide('capture-empty'); show('capture-preview');
+  hide('btn-open-camera'); show('btn-submit-clock'); show('btn-retake');
+};
+
+$('btn-retake').onclick = resetCapture;
+
+$('btn-submit-clock').onclick = async () => {
+  if (!state.capturedFile) return;
+  $('btn-submit-clock').disabled = true;
+  $('btn-submit-clock').textContent = 'กำลังบันทึก...';
+  try {
+    await submitClock();
+  } catch(err){
+    console.error(err);
+    toast('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+  } finally {
+    $('btn-submit-clock').disabled = false;
+    $('btn-submit-clock').textContent = 'ยืนยันตอกบัตร';
+  }
+};
+
+async function submitClock(){
+  const empId = state.selectedEmployeeId;
+  const now = new Date();
+  const dateKey = todayStr(now);
+
+  const { data: existing } = await sb.from('attendance_records')
+    .select('*').eq('employee_id', empId).eq('record_date', dateKey).maybeSingle();
+
+  const isCheckOut = existing && existing.clock_in_time && !existing.clock_out_time;
+  if (existing && existing.clock_in_time && existing.clock_out_time) {
+    toast('วันนี้ตอกบัตรครบทั้งเข้าและออกแล้ว');
+    resetCapture();
+    return;
+  }
+
+  const kind = isCheckOut ? 'out' : 'in';
+  const path = `${empId}/${dateKey}/${kind}_${now.getTime()}.jpg`;
+  const { error: upErr } = await sb.storage.from('attendance-photos').upload(path, state.capturedFile, { upsert: true });
+  if (upErr) throw upErr;
+  const { data: pub } = sb.storage.from('attendance-photos').getPublicUrl(path);
+  const photoUrl = pub.publicUrl;
+
+  const { data: empData } = await sb.from('employees').select('*').eq('id', empId).single();
+  let isLate = false;
+
+  if (kind === 'in') {
+    const [h, m] = empData.work_start_time.split(':').map(Number);
+    const startMinutes = h*60 + m + (empData.grace_minutes || 0);
+    const nowMinutes = now.getHours()*60 + now.getMinutes();
+    isLate = nowMinutes > startMinutes;
+
+    const { error } = await sb.from('attendance_records').insert({
+      employee_id: empId, record_date: dateKey,
+      clock_in_time: now.toISOString(), clock_in_photo_url: photoUrl,
+      is_late: isLate
+    });
+    if (error) throw error;
+  } else {
+    const { error } = await sb.from('attendance_records')
+      .update({ clock_out_time: now.toISOString(), clock_out_photo_url: photoUrl })
+      .eq('id', existing.id);
+    if (error) throw error;
+  }
+
+  showTicket(empData, kind, now, isLate || (existing && existing.is_late));
+}
+
+function showTicket(emp, kind, now, isLate){
+  $('ticket-badge').className = 'ticket-status ' + (kind === 'in' ? (isLate ? 'status-late' : 'status-in') : 'status-out');
+  $('ticket-badge').textContent = kind === 'in' ? (isLate ? 'ลงเวลาเข้างาน (สาย)' : 'ลงเวลาเข้างาน') : 'ลงเวลาออกงาน';
+  $('ticket-time').textContent = timeStr(now);
+  $('ticket-date').textContent = dateThai(now);
+  $('ticket-name').textContent = emp.full_name;
+  $('ticket-dept').textContent = localStorage.getItem(LS_DEPT_NAME) || '—';
+  $('ticket-kind').textContent = kind === 'in' ? 'ตอกบัตรเข้างาน' : 'ตอกบัตรออกงาน';
+  showOnly('screen-ticket');
+}
+
+$('btn-ticket-done').onclick = async () => {
+  const { data } = await sb.from('employees').select('*, departments(name)').eq('id', state.selectedEmployeeId).maybeSingle();
+  showCheckinScreen(data);
+};
+
+/* ============================================================
+   ADMIN — PIN ENTRY
+   ============================================================ */
+$('btn-goto-admin').onclick = () => { showOnly('screen-admin-pin'); renderPinPad(); };
+$('btn-back-checkin').onclick = async () => {
+  const { data } = await sb.from('employees').select('*, departments(name)').eq('id', state.selectedEmployeeId).maybeSingle();
+  if (data) showCheckinScreen(data); else showOnly('screen-register');
+};
+
+function renderPinPad(){
+  state.pinBuffer = '';
+  updatePinDisplay();
+  const pad = $('pin-pad');
+  pad.innerHTML = '';
+  ['1','2','3','4','5','6','7','8','9','ลบ','0','ตกลง'].forEach(k => {
+    const b = document.createElement('button');
+    b.className = 'pin-key';
+    b.textContent = k;
+    b.onclick = () => handlePinKey(k);
+    pad.appendChild(b);
+  });
+}
+
+function updatePinDisplay(){
+  $('pin-display').textContent = '●'.repeat(state.pinBuffer.length);
+}
+
+async function handlePinKey(k){
+  if (k === 'ลบ') { state.pinBuffer = state.pinBuffer.slice(0,-1); updatePinDisplay(); return; }
+  if (k === 'ตกลง') { await tryAdminLogin(); return; }
+  if (state.pinBuffer.length < 12) state.pinBuffer += k;
+  updatePinDisplay();
+}
+
+async function tryAdminLogin(){
+  const { data, error } = await sb.rpc('check_admin_pin', { input_pin: state.pinBuffer });
+  if (error || data !== true) {
+    toast('รหัสผ่านไม่ถูกต้อง');
+    state.pinBuffer = ''; updatePinDisplay();
+    return;
+  }
+  state.adminActive = true;
+  showOnly('screen-admin');
+  await renderOverviewTab();
+}
+
+$('btn-admin-logout').onclick = async () => {
+  state.adminActive = false;
+  const { data } = await sb.from('employees').select('*, departments(name)').eq('id', state.selectedEmployeeId).maybeSingle();
+  if (data) showCheckinScreen(data); else showOnly('screen-register');
+};
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.onclick = async () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    const name = tab.dataset.tab;
+    $('tab-' + name).classList.remove('hidden');
+    if (name === 'overview') await renderOverviewTab();
+    if (name === 'employees') await renderEmployeesTab();
+    if (name === 'offdays') await renderOffdaysTab();
+    if (name === 'reports') await renderReportsTab();
+  };
+});
+
+/* ============================================================
+   ADMIN — OVERVIEW TAB (today's status per employee)
+   ============================================================ */
+async function isEmployeeOffToday(empId, dateObj){
+  const weekday = dateObj.getDay();
+  const dateKey = todayStr(dateObj);
+  const { data: weekly } = await sb.from('employee_weekly_off').select('*').eq('employee_id', empId).eq('weekday', weekday);
+  if (weekly && weekly.length) return true;
+  const { data: dateOff } = await sb.from('employee_date_off').select('*').eq('employee_id', empId).eq('off_date', dateKey);
+  if (dateOff && dateOff.length) return true;
+  return false;
+}
+
+async function renderOverviewTab(){
+  const panel = $('tab-overview');
+  panel.innerHTML = '<div class="panel">กำลังโหลด...</div>';
+  const dateKey = todayStr();
+  const { data: employees } = await sb.from('employees').select('*, departments(name)').eq('active', true).order('full_name');
+  const { data: records } = await sb.from('attendance_records').select('*').eq('record_date', dateKey);
+  const recMap = {}; (records||[]).forEach(r => recMap[r.employee_id] = r);
+
+  const { data: weeklyAll } = await sb.from('employee_weekly_off').select('*');
+  const { data: dateOffAll } = await sb.from('employee_date_off').select('*').eq('off_date', dateKey);
+  const weekday = new Date().getDay();
+  const weeklyOffSet = new Set((weeklyAll||[]).filter(w=>w.weekday===weekday).map(w=>w.employee_id));
+  const dateOffSet = new Set((dateOffAll||[]).map(d=>d.employee_id));
+
+  let present=0, late=0, absent=0, off=0;
+  const rows = (employees||[]).map(e => {
+    const rec = recMap[e.id];
+    const isOff = weeklyOffSet.has(e.id) || dateOffSet.has(e.id);
+    let badge, label;
+    if (isOff) { badge='b-off'; label='วันหยุด'; off++; }
+    else if (rec && rec.clock_in_time) {
+      if (rec.is_late) { badge='b-late'; label='มาสาย'; late++; }
+      else { badge='b-ok'; label='มาปกติ'; present++; }
+    } else { badge='b-absent'; label='ยังไม่ตอกบัตร'; absent++; }
+    const inTime = rec && rec.clock_in_time ? new Date(rec.clock_in_time).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '—';
+    const outTime = rec && rec.clock_out_time ? new Date(rec.clock_out_time).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '—';
+    return `<tr><td>${e.full_name}</td><td>${e.departments?e.departments.name:''}</td><td>${inTime}</td><td>${outTime}</td><td><span class="badge ${badge}">${label}</span></td></tr>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="grid2" style="margin-bottom:16px;">
+      <div class="panel"><div class="muted">สรุปวันนี้ (${dateThai()})</div>
+        <div style="display:flex;gap:18px;margin-top:10px;flex-wrap:wrap;">
+          <div><b class="mono" style="font-size:20px;">${present}</b><div class="muted" style="font-size:12px;">มาปกติ</div></div>
+          <div><b class="mono" style="font-size:20px;color:var(--warn);">${late}</b><div class="muted" style="font-size:12px;">มาสาย</div></div>
+          <div><b class="mono" style="font-size:20px;color:var(--err);">${absent}</b><div class="muted" style="font-size:12px;">ยังไม่ตอกบัตร</div></div>
+          <div><b class="mono" style="font-size:20px;">${off}</b><div class="muted" style="font-size:12px;">วันหยุด</div></div>
+        </div>
+      </div>
+      <div class="panel"><div class="muted">การแจ้งเตือนไลน์</div>
+        <p class="muted" style="margin-top:8px;">ระบบตรวจสอบและแจ้งเตือนอัตโนมัติทำงานผ่านตัวจับเวลาแยกต่างหาก (ดู SETUP.md) จะแจ้งเตือนทันทีเมื่อพนักงานไม่ตอกบัตรในวันทำงานของตน</p>
+      </div>
+    </div>
+    <div class="panel" style="overflow-x:auto;">
+      <table><thead><tr><th>ชื่อ</th><th>แผนก</th><th>เข้างาน</th><th>ออกงาน</th><th>สถานะ</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="muted">ยังไม่มีพนักงาน</td></tr>'}</tbody></table>
+    </div>`;
+}
+
+/* ============================================================
+   ADMIN — EMPLOYEES TAB
+   ============================================================ */
+async function renderEmployeesTab(){
+  const panel = $('tab-employees');
+  const { data: employees } = await sb.from('employees').select('*, departments(name)').order('full_name');
+  const { data: depts } = await sb.from('departments').select('*').order('name');
+  state.employeesCache = employees || [];
+
+  const rows = (employees||[]).map(e => `
+    <div class="small-row">
+      <div>
+        <b>${e.full_name}</b>
+        <div class="muted" style="font-size:12px;">${e.departments?e.departments.name:''} · เข้างาน ${e.work_start_time} · โทร ${e.phone||'—'} ${e.active?'':' · ปิดใช้งาน'}</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="icon-btn" onclick="editEmployee('${e.id}')">แก้ไข</button>
+        <button class="icon-btn" onclick="toggleEmployeeActive('${e.id}', ${e.active})">${e.active?'ปิดใช้งาน':'เปิดใช้งาน'}</button>
+      </div>
+    </div>`).join('');
+
+  panel.innerHTML = `
+    <div class="grid2">
+      <div class="panel">
+        <h3 style="font-size:15px;">เพิ่มพนักงานใหม่</h3>
+        <div class="stack" style="margin-top:12px;">
+          <div class="field"><label>ชื่อ-สกุล</label><input id="new-emp-name" placeholder="ชื่อพนักงาน"></div>
+          <div class="field"><label>แผนก</label>
+            <select id="new-emp-dept">${(depts||[]).map(d=>`<option value="${d.id}">${d.name}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>เวลาเข้างานมาตรฐาน</label><input type="time" id="new-emp-start" value="08:00"></div>
+          <div class="field"><label>ระยะเวลาผ่อนผัน (นาที)</label><input type="number" id="new-emp-grace" value="15" min="0"></div>
+          <button class="btn btn-primary" onclick="addEmployee()">เพิ่มพนักงาน</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 style="font-size:15px;">รายชื่อพนักงานทั้งหมด</h3>
+        <div style="margin-top:10px;max-height:420px;overflow-y:auto;">${rows || '<div class="muted">ยังไม่มีพนักงาน</div>'}</div>
+      </div>
+    </div>`;
+}
+
+async function addEmployee(){
+  const name = $('new-emp-name').value.trim();
+  const deptId = $('new-emp-dept').value;
+  const start = $('new-emp-start').value || '08:00';
+  const grace = parseInt($('new-emp-grace').value || '15');
+  if (!name) { toast('กรุณากรอกชื่อพนักงาน'); return; }
+  const { error } = await sb.from('employees').insert({ full_name: name, department_id: deptId, work_start_time: start, grace_minutes: grace, active: true });
+  if (error) { toast('เพิ่มพนักงานไม่สำเร็จ'); return; }
+  toast('เพิ่มพนักงานเรียบร้อย');
+  await renderEmployeesTab();
+}
+
+async function toggleEmployeeActive(id, current){
+  await sb.from('employees').update({ active: !current }).eq('id', id);
+  await renderEmployeesTab();
+}
+
+window.editEmployee = async function(id){
+  const emp = state.employeesCache.find(e => e.id === id);
+  if (!emp) return;
+  const name = prompt('ชื่อ-สกุล', emp.full_name);
+  if (name === null) return;
+  const start = prompt('เวลาเข้างาน (HH:MM)', emp.work_start_time);
+  if (start === null) return;
+  const grace = prompt('ระยะเวลาผ่อนผัน (นาที)', emp.grace_minutes);
+  if (grace === null) return;
+  const phone = prompt('เบอร์โทรศัพท์', emp.phone || '');
+  await sb.from('employees').update({ full_name:name, work_start_time:start, grace_minutes:parseInt(grace)||0, phone }).eq('id', id);
+  toast('บันทึกการแก้ไขแล้ว');
+  await renderEmployeesTab();
+};
+window.toggleEmployeeActive = toggleEmployeeActive;
+window.addEmployee = addEmployee;
+
+/* ============================================================
+   ADMIN — OFF DAYS TAB
+   ============================================================ */
+async function renderOffdaysTab(){
+  const panel = $('tab-offdays');
+  const { data: employees } = await sb.from('employees').select('*, departments(name)').eq('active', true).order('full_name');
+  panel.innerHTML = `
+    <div class="panel">
+      <div class="field"><label>เลือกพนักงาน</label>
+        <select id="off-emp-select" class="filter" style="width:100%;">
+          <option value="">— เลือกพนักงาน —</option>
+          ${(employees||[]).map(e=>`<option value="${e.id}">${e.full_name} (${e.departments?e.departments.name:''})</option>`).join('')}
+        </select>
+      </div>
+      <div id="off-emp-detail" style="margin-top:16px;"></div>
+    </div>`;
+  $('off-emp-select').onchange = (e) => renderOffdayDetail(e.target.value);
+}
+
+async function renderOffdayDetail(empId){
+  const box = $('off-emp-detail');
+  if (!empId) { box.innerHTML = ''; return; }
+  const { data: weekly } = await sb.from('employee_weekly_off').select('*').eq('employee_id', empId);
+  const weeklySet = new Set((weekly||[]).map(w=>w.weekday));
+  const { data: dateOffs } = await sb.from('employee_date_off').select('*').eq('employee_id', empId).order('off_date', {ascending:false});
+
+  box.innerHTML = `
+    <div class="muted" style="margin-bottom:8px;">วันหยุดประจำสัปดาห์ (ทำซ้ำทุกสัปดาห์)</div>
+    <div class="weekday-picker" id="weekday-picker">
+      ${WEEKDAY_LABELS.map((l,i)=>`<button class="wd ${weeklySet.has(i)?'selected':''}" data-wd="${i}">${l}</button>`).join('')}
+    </div>
+    <hr class="hairline" style="margin:18px 0;">
+    <div class="muted" style="margin-bottom:8px;">เพิ่มวันหยุด/วันลาเฉพาะวัน</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input type="date" id="off-date-input" class="filter">
+      <input type="text" id="off-reason-input" class="filter" placeholder="เหตุผล (ไม่บังคับ)" style="flex:1;min-width:140px;">
+      <button class="btn-primary btn" style="width:auto;padding:9px 16px;" onclick="addDateOff('${empId}')">เพิ่ม</button>
+    </div>
+    <div style="margin-top:12px;">
+      ${(dateOffs||[]).map(d=>`
+        <div class="small-row">
+          <span>${d.off_date} ${d.reason?'· '+d.reason:''}</span>
+          <button class="icon-btn" onclick="removeDateOff('${d.id}','${empId}')">ลบ</button>
+        </div>`).join('') || '<div class="muted" style="font-size:13px;">ไม่มีวันหยุดเฉพาะวัน</div>'}
+    </div>`;
+
+  document.querySelectorAll('#weekday-picker .wd').forEach(btn => {
+    btn.onclick = async () => {
+      const wd = parseInt(btn.dataset.wd);
+      const isSelected = btn.classList.contains('selected');
+      if (isSelected) {
+        await sb.from('employee_weekly_off').delete().eq('employee_id', empId).eq('weekday', wd);
+        btn.classList.remove('selected');
+      } else {
+        await sb.from('employee_weekly_off').insert({ employee_id: empId, weekday: wd });
+        btn.classList.add('selected');
+      }
+    };
+  });
+}
+
+window.addDateOff = async function(empId){
+  const dateVal = $('off-date-input').value;
+  const reason = $('off-reason-input').value.trim();
+  if (!dateVal) { toast('กรุณาเลือกวันที่'); return; }
+  const { error } = await sb.from('employee_date_off').insert({ employee_id: empId, off_date: dateVal, reason });
+  if (error) { toast('เพิ่มไม่สำเร็จ (อาจมีวันนี้อยู่แล้ว)'); return; }
+  await renderOffdayDetail(empId);
+};
+
+window.removeDateOff = async function(id, empId){
+  await sb.from('employee_date_off').delete().eq('id', id);
+  await renderOffdayDetail(empId);
+};
+
+/* ============================================================
+   ADMIN — REPORTS TAB
+   ============================================================ */
+function halfMonthRange(part){
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  if (part === 'first') return [ `${y}-${pad(m+1)}-01`, `${y}-${pad(m+1)}-15` ];
+  const lastDay = new Date(y, m+1, 0).getDate();
+  return [ `${y}-${pad(m+1)}-16`, `${y}-${pad(m+1)}-${pad(lastDay)}` ];
+}
+
+async function renderReportsTab(){
+  const panel = $('tab-reports');
+  const [defFrom, defTo] = halfMonthRange('first');
+  panel.innerHTML = `
+    <div class="panel">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;">
+        <div class="field" style="max-width:170px;"><label>ตั้งแต่วันที่</label><input type="date" id="rep-from" class="filter" value="${defFrom}"></div>
+        <div class="field" style="max-width:170px;"><label>ถึงวันที่</label><input type="date" id="rep-to" class="filter" value="${defTo}"></div>
+        <button class="icon-btn" onclick="quickRange('first')">ครึ่งเดือนแรก (1-15)</button>
+        <button class="icon-btn" onclick="quickRange('second')">ครึ่งเดือนหลัง (16-สิ้นเดือน)</button>
+        <button class="btn btn-primary" style="width:auto;padding:9px 18px;" onclick="runReport()">ดึงรายงาน</button>
+        <button class="icon-btn" onclick="exportCSV()">ส่งออก CSV</button>
+      </div>
+    </div>
+    <div class="panel" id="report-summary"></div>
+    <div class="panel" style="overflow-x:auto;" id="report-table"></div>`;
+  await runReport();
+}
+
+window.quickRange = function(part){
+  const [f,t] = halfMonthRange(part);
+  $('rep-from').value = f; $('rep-to').value = t;
+  runReport();
+};
+
+let lastReportRows = [];
+
+window.runReport = async function(){
+  const from = $('rep-from').value, to = $('rep-to').value;
+  const { data: records } = await sb.from('attendance_records')
+    .select('*, employees(full_name, departments(name))')
+    .gte('record_date', from).lte('record_date', to)
+    .order('record_date');
+
+  const byEmp = {};
+  (records||[]).forEach(r => {
+    const name = r.employees ? r.employees.full_name : '—';
+    if (!byEmp[name]) byEmp[name] = { total:0, late:0 };
+    byEmp[name].total++;
+    if (r.is_late) byEmp[name].late++;
+  });
+
+  const summaryRows = Object.entries(byEmp).map(([name,v]) =>
+    `<tr><td>${name}</td><td>${v.total}</td><td>${v.late}</td></tr>`).join('');
+  $('report-summary').innerHTML = `
+    <div class="muted" style="margin-bottom:8px;">สรุปช่วง ${from} ถึง ${to}</div>
+    <table><thead><tr><th>ชื่อพนักงาน</th><th>จำนวนวันที่มาทำงาน</th><th>จำนวนวันที่มาสาย</th></tr></thead>
+    <tbody>${summaryRows || '<tr><td colspan="3" class="muted">ไม่มีข้อมูล</td></tr>'}</tbody></table>`;
+
+  lastReportRows = (records||[]).map(r => ({
+    date: r.record_date,
+    name: r.employees ? r.employees.full_name : '',
+    dept: r.employees && r.employees.departments ? r.employees.departments.name : '',
+    in: r.clock_in_time ? new Date(r.clock_in_time).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '',
+    out: r.clock_out_time ? new Date(r.clock_out_time).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '',
+    late: r.is_late ? 'สาย' : 'ปกติ'
+  }));
+
+  $('report-table').innerHTML = `
+    <table><thead><tr><th>วันที่</th><th>ชื่อ</th><th>แผนก</th><th>เข้างาน</th><th>ออกงาน</th><th>สถานะ</th></tr></thead>
+    <tbody>${lastReportRows.map(r=>`<tr><td>${r.date}</td><td>${r.name}</td><td>${r.dept}</td><td>${r.in}</td><td>${r.out}</td><td>${r.late}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">ไม่มีข้อมูล</td></tr>'}</tbody></table>`;
+};
+
+window.exportCSV = function(){
+  if (!lastReportRows.length) { toast('ไม่มีข้อมูลให้ส่งออก'); return; }
+  const header = 'วันที่,ชื่อ,แผนก,เข้างาน,ออกงาน,สถานะ\n';
+  const body = lastReportRows.map(r => [r.date,r.name,r.dept,r.in,r.out,r.late].join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+header+body], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `attendance-report-${todayStr()}.csv`;
+  a.click();
+};
+
+init();
+
+/* live clock ticking */
+function tickClock(){
+  const now = new Date();
+  const timeFull = now.toLocaleTimeString('th-TH', { hour12:false });
+  const t1 = document.getElementById('live-clock-time');
+  const t2 = document.getElementById('live-clock-date');
+  const t3 = document.getElementById('brand-clock');
+  if (t1) t1.textContent = timeFull;
+  if (t2) t2.textContent = dateThai(now);
+  if (t3) t3.textContent = timeFull;
+}
+tickClock();
+setInterval(tickClock, 1000);
+</script>
+</body>
+</html>
